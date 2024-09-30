@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciador de Arquivos com Lixeira</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .folder-icon {
+            font-size: 30px;
+            cursor: pointer;
+        }
+        .folder-actions {
+            display: none;
+        }
+        .folder:hover .folder-actions {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+<div class="container mt-5">
+    <h1 class="text-center mb-4">Gerenciador de Arquivos com Lixeira e Persistência</h1>
+    
+    <div class="d-flex justify-content-between mb-4">
+        <button class="btn btn-primary" onclick="createFolder()">Criar Pasta</button>
+        <button class="btn btn-success" onclick="goBack()">Voltar</button>
+        <button class="btn btn-warning" onclick="showTrash()">Lixeira</button>
+        <div id="current-path" class="text-secondary">Caminho Atual: <strong>/</strong></div>
+    </div>
+    
+    <!-- Área para visualização de pastas -->
+    <div class="row" id="folder-container">
+        <!-- Pastas serão exibidas aqui dinamicamente -->
+    </div>
+</div>
+
+<!-- Modal para criar/editar pasta -->
+<div class="modal fade" id="folderModal" tabindex="-1" role="dialog" aria-labelledby="folderModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="folderModalLabel">Nova Pasta</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="folderName" class="form-control" placeholder="Digite o nome da pasta">
+                <input type="hidden" id="editFolderId">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveFolder()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para exibir a lixeira -->
+<div class="modal fade" id="trashModal" tabindex="-1" role="dialog" aria-labelledby="trashModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="trashModalLabel">Lixeira</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="row" id="trash-container">
+                    <!-- Conteúdo da lixeira será exibido aqui -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap JS e dependências -->
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+<script>
+    let folders = [];
+    let trash = [];
+    let currentPath = [];
+
+    // Salvar o estado no localStorage
+    function saveToLocalStorage() {
+        localStorage.setItem('folders', JSON.stringify(folders));
+        localStorage.setItem('trash', JSON.stringify(trash));
+        localStorage.setItem('currentPath', JSON.stringify(currentPath));
+    }
+
+    // Carregar o estado do localStorage
+    function loadFromLocalStorage() {
+        const storedFolders = localStorage.getItem('folders');
+        const storedTrash = localStorage.getItem('trash');
+        const storedPath = localStorage.getItem('currentPath');
+
+        if (storedFolders) {
+            folders = JSON.parse(storedFolders);
+        }
+        if (storedTrash) {
+            trash = JSON.parse(storedTrash);
+        }
+        if (storedPath) {
+            currentPath = JSON.parse(storedPath);
+        }
+
+        renderFolders();
+    }
+
+    // Função para criar uma nova pasta
+    function createFolder() {
+        document.getElementById('editFolderId').value = '';
+        document.getElementById('folderName').value = '';
+        document.getElementById('folderModalLabel').innerText = 'Nova Pasta';
+        $('#folderModal').modal('show');
+    }
+
+    // Salvar nova pasta ou editar pasta existente
+    function saveFolder() {
+        const folderName = document.getElementById('folderName').value.trim();
+        const editFolderId = document.getElementById('editFolderId').value;
+
+        if (folderName === '') {
+            alert('Por favor, insira o nome da pasta.');
+            return;
+        }
+
+        if (editFolderId) {
+            const folder = folders.find(f => f.id === editFolderId);
+            folder.name = folderName;
+        } else {
+            folders.push({ id: Date.now().toString(), name: folderName, path: currentPath.join('/') });
+        }
+
+        $('#folderModal').modal('hide');
+        saveToLocalStorage();
+        renderFolders();
+    }
+
+    // Renderizar as pastas na interface
+    function renderFolders() {
+        const folderContainer = document.getElementById('folder-container');
+        folderContainer.innerHTML = '';
+        const currentFolderPath = currentPath.join('/');
+
+        const filteredFolders = folders.filter(folder => folder.path === currentFolderPath);
+
+        filteredFolders.forEach(folder => {
+            const col = document.createElement('div');
+            col.className = 'col-md-3 mb-3';
+            col.innerHTML = `
+                <div class="card folder">
+                    <div class="card-body">
+                        <span class="folder-icon" onclick="enterFolder('${folder.name}')">📁</span>
+                        <h5 class="card-title d-inline ml-2">${folder.name}</h5>
+                        <div class="folder-actions">
+                            <button class="btn btn-warning btn-sm" onclick="editFolder('${folder.id}')">Editar</button>
+                            <button class="btn btn-danger btn-sm" onclick="deleteFolder('${folder.id}')">Excluir</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            folderContainer.appendChild(col);
+        });
+
+        document.getElementById('current-path').innerHTML = `Caminho Atual: <strong>/${currentPath.join('/') || ''}</strong>`;
+    }
+
+    // Entrar em uma pasta
+    function enterFolder(folderName) {
+        currentPath.push(folderName);
+        saveToLocalStorage();
+        renderFolders();
+    }
+
+    // Voltar para a pasta anterior
+    function goBack() {
+        if (currentPath.length > 0) {
+            currentPath.pop();
+            saveToLocalStorage();
+            renderFolders();
+        }
+    }
+
+    // Editar uma pasta
+    function editFolder(folderId) {
+        const folder = folders.find(f => f.id === folderId);
+        document.getElementById('folderName').value = folder.name;
+        document.getElementById('editFolderId').value = folder.id;
+        document.getElementById('folderModalLabel').innerText = 'Editar Pasta';
+        $('#folderModal').modal('show');
+    }
+
+    // Excluir uma pasta (envia para a lixeira)
+    function deleteFolder(folderId) {
+        const folder = folders.find(f => f.id === folderId);
+        trash.push(folder);
+        folders = folders.filter(f => f.id !== folderId);
+        saveToLocalStorage();
+        renderFolders();
+    }
+
+    // Mostrar a lixeira
+    function showTrash() {
+        const trashContainer = document.getElementById('trash-container');
+        trashContainer.innerHTML = '';
+
+        trash.forEach(folder => {
+            const col = document.createElement('div');
+            col.className = 'col-md-3 mb-3';
+            col.innerHTML = `
+                <div class="card folder">
+                    <div class="card-body">
+                        <span class="folder-icon">🗑️</span>
+                        <h5 class="card-title d-inline ml-2">${folder.name}</h5>
+                        <div class="folder-actions">
+                            <button class="btn btn-success btn-sm" onclick="restoreFolder('${folder.id}')">Restaurar</button>
+                            <button class="btn btn-danger btn-sm" onclick="deleteForever('${folder.id}')">Excluir Permanentemente</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            trashContainer.appendChild(col);
+        });
+
+        $('#trashModal').modal('show');
+    }
+
+    // Restaurar pasta da lixeira
+    function restoreFolder(folderId) {
+        const folder = trash.find(f => f.id === folderId);
+        folders.push(folder);
+        trash = trash.filter(f => f.id !== folderId);
+        saveToLocalStorage();
+        renderFolders();
+        showTrash();
+    }
+
+    // Excluir permanentemente pasta da lixeira
+    function deleteForever(folderId) {
+        trash = trash.filter(f => f.id !== folderId);
+        saveToLocalStorage();
+        showTrash();
+    }
+
+    // Inicializar o sistema
+    loadFromLocalStorage();
+</script>
+</body>
+</html>
